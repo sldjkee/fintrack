@@ -6,11 +6,11 @@ from typing import Annotated, Literal
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import inspect, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-from models import Transaction
+from models import Budget, Transaction
 
 
 def ensure_transaction_date_column() -> None:
@@ -90,6 +90,21 @@ class TransactionUpdate(BaseModel):
         return value
 
 
+class BudgetCreate(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    category: str = Field(min_length=1, max_length=50)
+    limit_amount: float = Field(gt=0, allow_inf_nan=False)
+
+    @field_validator("category")
+    @classmethod
+    def strip_category(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Категория не может быть пустой")
+        return value
+
+
 def serialize_transaction(item: Transaction):
     return {
         "id": item.id,
@@ -98,6 +113,51 @@ def serialize_transaction(item: Transaction):
         "type": item.type,
         "category": item.category,
         "date": item.date.isoformat() if item.date else None,
+    }
+
+
+def get_budget_spent(
+    db: Session,
+    year: int,
+    month: int,
+    category: str,
+) -> float:
+    first_day = DateType(year, month, 1)
+    last_day = DateType(
+        year,
+        month,
+        calendar.monthrange(year, month)[1],
+    )
+
+    statement = select(
+        func.coalesce(func.sum(Transaction.amount), 0.0)
+    ).where(
+        Transaction.type == "expense",
+        Transaction.category == category,
+        Transaction.date >= first_day,
+        Transaction.date <= last_day,
+    )
+
+    return float(db.scalar(statement) or 0.0)
+
+
+def serialize_budget(budget: Budget, spent: float) -> dict:
+    limit_amount = float(budget.limit_amount)
+    spent = round(spent, 2)
+    usage_percent = round(spent / limit_amount * 100, 1)
+
+    return {
+        "id": budget.id,
+        "year": budget.year,
+        "month": budget.month,
+        "category": budget.category,
+        "limit_amount": limit_amount,
+        "spent": spent,
+        "remaining": round(max(limit_amount - spent, 0), 2),
+        "over_by": round(max(spent - limit_amount, 0), 2),
+        "usage_percent": usage_percent,
+        "is_warning": 80 <= usage_percent < 100,
+        "is_over_budget": spent > limit_amount,
     }
 
 
@@ -284,6 +344,114 @@ def get_monthly_analytics(
         "transaction_count": len(transactions),
         "daily_expenses": daily_expenses,
         "expense_by_category": expense_by_category,
+    }
+
+
+@app.get("/api/budgets")
+def get_budgets(
+    db: DBSession,
+    year: int = Query(ge=2000, le=2100),
+    month: int = Query(ge=1, le=12),
+):
+    first_day = DateType(year, month, 1)
+    last_day = DateType(
+        year,
+        month,
+        calendar.monthrange(year, month)[1],
+    )
+
+    budgets = db.scalars(
+        select(Budget)
+        .where(
+            Budget.year == year,
+            Budget.month == month,
+        )
+        .order_by(Budget.category.asc())
+    ).all()
+
+    spent_rows = db.execute(
+        select(
+            Transaction.category,
+            func.sum(Transaction.amount),
+        )
+        .where(
+            Transaction.type == "expense",
+            Transaction.date >= first_day,
+            Transaction.date <= last_day,
+        )
+        .group_by(Transaction.category)
+    ).all()
+
+    spent_by_category = {
+        category: float(amount or 0)
+        for category, amount in spent_rows
+    }
+
+    return [
+        serialize_budget(
+            budget,
+            spent_by_category.get(budget.category, 0.0),
+        )
+        for budget in budgets
+    ]
+
+
+@app.post("/api/budgets")
+def create_or_update_budget(
+    data: BudgetCreate,
+    db: DBSession,
+):
+    budget = db.scalar(
+        select(Budget).where(
+            Budget.year == data.year,
+            Budget.month == data.month,
+            Budget.category == data.category,
+        )
+    )
+
+    if budget is None:
+        budget = Budget(
+            year=data.year,
+            month=data.month,
+            category=data.category,
+            limit_amount=data.limit_amount,
+        )
+        db.add(budget)
+    else:
+        budget.limit_amount = data.limit_amount
+
+    db.commit()
+    db.refresh(budget)
+
+    spent = get_budget_spent(
+        db,
+        budget.year,
+        budget.month,
+        budget.category,
+    )
+
+    return serialize_budget(budget, spent)
+
+
+@app.delete("/api/budgets/{budget_id}")
+def delete_budget(
+    budget_id: int,
+    db: DBSession,
+):
+    budget = db.get(Budget, budget_id)
+
+    if budget is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Бюджет не найден",
+        )
+
+    db.delete(budget)
+    db.commit()
+
+    return {
+        "message": "Бюджет удалён",
+        "id": budget_id,
     }
 
 
