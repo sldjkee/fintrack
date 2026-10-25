@@ -1,4 +1,3 @@
-
 * {
   box-sizing: border-box;
 }
@@ -168,7 +167,6 @@ header h1 {
   }
 }
 
-
 .transaction-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -224,7 +222,7 @@ header h1 {
     grid-template-columns: 1fr;
   }
 }
-/* Добавь эти стили в конец frontend/src/App.css */
+
 .analytics-header {
   display: flex;
   justify-content: space-between;
@@ -362,6 +360,7 @@ header h1 {
     width: 100%;
   }
 }
+
 /* FinTrack polished navigation and page layout */
 .ft-app {
   --ft-ink: #182230;
@@ -532,6 +531,7 @@ header h1 {
 .ft-category-bar { height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #7181ed, #4b63dd); }
 .ft-category-share { color: #98a2b3; font-size: 10px; }
 .ft-footnote { margin: 16px 2px 0; color: #98a2b3; font-size: 10px; line-height: 1.6; }
+
 @media (max-width: 1100px) {
   .ft-sidebar { width: 220px; flex-basis: 220px; }
   .ft-page { padding: 28px 25px 44px; }
@@ -540,6 +540,7 @@ header h1 {
   .ft-balance-card { grid-column: 1 / -1; }
   .ft-filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
 @media (max-width: 760px) {
   .ft-app { display: block; }
   .ft-sidebar { position: static; width: 100%; min-height: 0; padding: 13px 15px 10px; border-right: 0; border-bottom: 1px solid var(--ft-border); }
@@ -583,6 +584,7 @@ header h1 {
   .ft-row-actions { margin-left: 0; }
   .ft-icon-button { width: 28px; height: 28px; }
 }
+
 @media (max-width: 420px) {
   .ft-transaction-row { flex-wrap: wrap; }
   .ft-transaction-main { flex-basis: calc(100% - 50px); }
@@ -591,4 +593,137 @@ header h1 {
   .ft-filter-form { grid-template-columns: 1fr; }
   .ft-filter-actions { grid-column: auto; }
   .ft-page-heading .ft-primary-button { width: 100%; }
+}
+
+/* Budgets */
+.ft-budget-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.ft-budget-toolbar h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.ft-budget-toolbar p {
+  margin: 5px 0 0;
+  color: #98a2b3;
+  font-size: 11px;
+}
+.ft-budget-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+.ft-budget-submit {
+  display: flex;
+  align-items: flex-end;
+}
+.ft-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 19px;
+}
+.ft-budget-card {
+  margin-top: 0;
+}
+.ft-budget-empty {
+  grid-column: 1 / -1;
+  color: #98a2b3;
+}
+.ft-budget-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ft-budget-caption {
+  color: #98a2b3;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1px;
+}
+.ft-budget-card h3 {
+  margin: 5px 0 0;
+  color: #263244;
+  font-size: 16px;
+}
+.ft-budget-amounts {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 23px;
+}
+.ft-budget-amounts strong {
+  font-size: 24px;
+  letter-spacing: -.5px;
+}
+.ft-budget-amounts span {
+  color: #98a2b3;
+  font-size: 11px;
+}
+.ft-budget-track {
+  width: 100%;
+  height: 10px;
+  margin-top: 15px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eff1f6;
+}
+.ft-budget-bar {
+  height: 100%;
+  border-radius: inherit;
+  transition: width .2s ease;
+}
+.ft-budget-bar.is-normal { background: #4b63dd; }
+.ft-budget-bar.is-warning { background: #e8a23a; }
+.ft-budget-bar.is-over { background: #d84d43; }
+.ft-budget-progress-label,
+.ft-budget-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.ft-budget-progress-label {
+  margin-top: 8px;
+  color: #98a2b3;
+  font-size: 10px;
+}
+.ft-budget-progress-label strong { color: #475467; }
+.ft-budget-footer {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #f0f2f5;
+  color: #667085;
+  font-size: 11px;
+}
+.ft-budget-footer strong { font-size: 13px; }
+.ft-budget-footer strong.is-normal,
+.ft-budget-status.is-normal { color: #14804a; }
+.ft-budget-footer strong.is-warning,
+.ft-budget-status.is-warning { color: #b7791f; }
+.ft-budget-footer strong.is-over,
+.ft-budget-status.is-over { color: #b42318; }
+.ft-budget-status {
+  margin: 13px 0 0;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .ft-budget-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ft-budget-form,
+  .ft-budget-grid {
+    grid-template-columns: 1fr;
+  }
+  .ft-budget-submit .ft-primary-button {
+    width: 100%;
+  }
 }

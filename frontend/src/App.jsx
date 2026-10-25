@@ -108,6 +108,12 @@ function App() {
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [budgets, setBudgets] = useState([]);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetForm, setBudgetForm] = useState({
+    category: "Еда",
+    limit_amount: "",
+  });
 
   async function loadData(filtersToUse = appliedFilters, monthToUse = analyticsMonth) {
     try {
@@ -149,9 +155,102 @@ function App() {
     }
   }
 
+  async function loadBudgets(monthToUse = analyticsMonth) {
+    setBudgetLoading(true);
+    try {
+      const [year, month] = monthToUse.split("-");
+      const response = await fetch(
+        `${API_URL}/api/budgets?year=${year}&month=${Number(month)}`
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.detail || "Не удалось загрузить бюджеты.");
+      }
+
+      setBudgets(await response.json());
+    } catch (err) {
+      setError(err.message || "Ошибка загрузки бюджетов.");
+    } finally {
+      setBudgetLoading(false);
+    }
+  }
+
+  async function handleBudgetSubmit(event) {
+    event.preventDefault();
+
+    const category = budgetForm.category.trim();
+    const limitAmount = Number(budgetForm.limit_amount);
+
+    if (!category || !Number.isFinite(limitAmount) || limitAmount <= 0) {
+      setError("Укажи категорию и положительный лимит.");
+      return;
+    }
+
+    const [year, month] = analyticsMonth.split("-").map(Number);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/budgets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year,
+          month,
+          category,
+          limit_amount: limitAmount,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.detail || "Не удалось сохранить бюджет.");
+      }
+
+      setNotice(`Бюджет категории «${category}» сохранён.`);
+      setBudgetForm((previous) => ({ ...previous, limit_amount: "" }));
+      await loadBudgets(analyticsMonth);
+    } catch (err) {
+      setError(err.message || "Ошибка сохранения бюджета.");
+    }
+  }
+
+  async function handleBudgetDelete(budget) {
+    const confirmed = window.confirm(
+      `Удалить бюджет «${budget.category}» за ${monthLabel(analyticsMonth)}?`
+    );
+    if (!confirmed) return;
+
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/budgets/${budget.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.detail || "Не удалось удалить бюджет.");
+      }
+
+      setNotice(`Бюджет «${budget.category}» удалён.`);
+      await loadBudgets(analyticsMonth);
+    } catch (err) {
+      setError(err.message || "Ошибка удаления бюджета.");
+    }
+  }
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (page === "budgets") {
+      loadBudgets(analyticsMonth);
+    }
+  }, [page, analyticsMonth]);
 
   const incomeAll = useMemo(
     () => allTransactions.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount), 0),
@@ -201,6 +300,7 @@ function App() {
       setForm(emptyForm());
       setNotice(isEditing ? "Изменения сохранены." : "Операция добавлена.");
       await loadData(appliedFilters, analyticsMonth);
+      if (page === "budgets") await loadBudgets(analyticsMonth);
     } catch (err) {
       setError(err.message || "Ошибка при сохранении операции.");
     } finally {
@@ -245,6 +345,7 @@ function App() {
       if (editingId === item.id) cancelEditing();
       setNotice("Операция удалена.");
       await loadData(appliedFilters, analyticsMonth);
+      if (page === "budgets") await loadBudgets(analyticsMonth);
     } catch (err) {
       setError(err.message || "Ошибка при удалении операции.");
     } finally {
@@ -281,12 +382,14 @@ function App() {
     { id: "overview", label: "Обзор", icon: "grid" },
     { id: "transactions", label: "Транзакции", icon: "list" },
     { id: "analytics", label: "Аналитика", icon: "chart" },
+    { id: "budgets", label: "Бюджеты", icon: "wallet" },
   ];
 
   const titles = {
     overview: ["Обзор", "Краткая сводка твоих финансов."],
     transactions: ["Транзакции", "Управляй доходами и расходами."],
     analytics: ["Аналитика", "Понимай, куда уходят деньги."],
+    budgets: ["Бюджеты", "Планируй расходы и контролируй лимиты."],
   };
 
   const maxDaily = Math.max(...(analytics?.daily_expenses || []).map((item) => item.amount), 1);
@@ -362,7 +465,7 @@ function App() {
         <div className="ft-page">
           <div className="ft-page-heading">
             <div><p className="ft-eyebrow">ТВОИ ДЕНЬГИ — ПОД КОНТРОЛЕМ</p><h1>{titles[page][0]}</h1><p className="ft-page-description">{titles[page][1]}</p></div>
-            {page !== "transactions" && <button className="ft-primary-button" onClick={() => { setPage("transactions"); setEditingId(null); setForm(emptyForm()); }}><Icon name="plus" size={18} /> Добавить операцию</button>}
+            {page !== "transactions" && page !== "budgets" && <button className="ft-primary-button" onClick={() => { setPage("transactions"); setEditingId(null); setForm(emptyForm()); }}><Icon name="plus" size={18} /> Добавить операцию</button>}
           </div>
 
           {error && <div className="ft-alert is-error" role="alert">{error}</div>}
@@ -481,6 +584,144 @@ function App() {
                 ) : <div className="ft-chart-empty"><span className="ft-empty-icon"><Icon name="chart" size={22} /></span><strong>Нет данных по категориям</strong><p>Добавь расходы, чтобы увидеть распределение.</p></div>}
               </section>
               <p className="ft-footnote">Общий баланс учитывает все операции. Месячная аналитика включает только операции с известной датой.</p>
+            </>
+          )}
+
+          {page === "budgets" && (
+            <>
+              <section className="ft-panel ft-budget-toolbar">
+                <div>
+                  <h2>Месячные лимиты</h2>
+                  <p>Устанавливай ограничения и следи за расходами.</p>
+                </div>
+                <label className="ft-field ft-month-field">
+                  <span>Месяц бюджета</span>
+                  <input type="month" value={analyticsMonth} onChange={changeAnalyticsMonth} />
+                </label>
+              </section>
+
+              <section className="ft-panel">
+                <div className="ft-panel-heading">
+                  <div>
+                    <h2>Новый бюджет</h2>
+                    <p>Повторное сохранение категории обновит её лимит.</p>
+                  </div>
+                </div>
+                <form className="ft-budget-form" onSubmit={handleBudgetSubmit}>
+                  <label className="ft-field">
+                    <span>Категория</span>
+                    <input
+                      list="ft-budget-categories"
+                      value={budgetForm.category}
+                      onChange={(event) => setBudgetForm((previous) => ({
+                        ...previous,
+                        category: event.target.value,
+                      }))}
+                      maxLength={50}
+                      required
+                    />
+                    <datalist id="ft-budget-categories">
+                      {Array.from(new Set(allTransactions.map((item) => item.category).filter(Boolean))).map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <label className="ft-field">
+                    <span>Лимит, ₽</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={budgetForm.limit_amount}
+                      onChange={(event) => setBudgetForm((previous) => ({
+                        ...previous,
+                        limit_amount: event.target.value,
+                      }))}
+                      placeholder="10000"
+                      required
+                    />
+                  </label>
+                  <div className="ft-budget-submit">
+                    <button className="ft-primary-button" type="submit" disabled={budgetLoading}>
+                      <Icon name="plus" size={17} />
+                      Сохранить бюджет
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              <section className="ft-budget-grid">
+                {budgetLoading ? (
+                  <div className="ft-panel ft-budget-empty">Загружаем бюджеты…</div>
+                ) : budgets.length === 0 ? (
+                  <div className="ft-panel ft-chart-empty">
+                    <span className="ft-empty-icon"><Icon name="wallet" size={22} /></span>
+                    <strong>Бюджетов пока нет</strong>
+                    <p>Создай первый лимит, чтобы отслеживать расходы за выбранный месяц.</p>
+                  </div>
+                ) : budgets.map((budget) => {
+                  const progress = Math.min(Math.max(budget.usage_percent, 0), 100);
+                  const showWarning = !budget.is_over_budget && budget.usage_percent >= 80;
+                  const status = budget.is_over_budget ? "is-over" : showWarning ? "is-warning" : "is-normal";
+
+                  return (
+                    <article className="ft-panel ft-budget-card" key={budget.id}>
+                      <div className="ft-budget-card-top">
+                        <div>
+                          <span className="ft-budget-caption">КАТЕГОРИЯ</span>
+                          <h3>{budget.category}</h3>
+                        </div>
+                        <button
+                          type="button"
+                          className="ft-icon-button is-danger"
+                          title="Удалить бюджет"
+                          aria-label={`Удалить бюджет ${budget.category}`}
+                          onClick={() => handleBudgetDelete(budget)}
+                          disabled={budgetLoading}
+                        >
+                          <Icon name="trash" size={17} />
+                        </button>
+                      </div>
+
+                      <div className="ft-budget-amounts">
+                        <strong>{formatMoney(budget.spent)}</strong>
+                        <span>из {formatMoney(budget.limit_amount)}</span>
+                      </div>
+
+                      <div
+                        className="ft-budget-track"
+                        role="progressbar"
+                        aria-label={`Использование бюджета: ${budget.category}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.min(Math.max(Math.round(budget.usage_percent), 0), 100)}
+                      >
+                        <div className={`ft-budget-bar ${status}`} style={{ width: `${progress}%` }} />
+                      </div>
+
+                      <div className="ft-budget-progress-label">
+                        <strong>{budget.usage_percent}%</strong>
+                        <span>использовано</span>
+                      </div>
+
+                      <div className="ft-budget-footer">
+                        <span>{budget.is_over_budget ? "Превышение" : "Осталось"}</span>
+                        <strong className={status}>
+                          {formatMoney(budget.is_over_budget ? budget.over_by : budget.remaining)}
+                        </strong>
+                      </div>
+
+                      {budget.is_over_budget ? (
+                        <p className="ft-budget-status is-over">Лимит превышен. Стоит сократить расходы.</p>
+                      ) : showWarning ? (
+                        <p className="ft-budget-status is-warning">Использовано не менее 80% бюджета.</p>
+                      ) : (
+                        <p className="ft-budget-status is-normal">Ты пока в пределах бюджета.</p>
+                      )}
+                    </article>
+                  );
+                })}
+              </section>
             </>
           )}
         </div>
