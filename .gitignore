@@ -20,3 +20,9 @@ dist/
 
 # macOS
 .DS_Store
+
+# Local backups and temporary patch files
+*.backup
+*.additions
+PATCH-INSTRUCTIONS.md
+**/PATCH-INSTRUCTIONS.md

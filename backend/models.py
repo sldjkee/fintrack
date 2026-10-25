@@ -1,5 +1,6 @@
+from datetime import date as DateType
 
-from sqlalchemy import Float, Integer, String
+from sqlalchemy import Date, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -18,6 +19,8 @@ class Transaction(Base):
         nullable=False
     )
 
+    # Float оставлен как в текущей версии проекта.
+    # Денежный тип лучше улучшить отдельной миграцией.
     amount: Mapped[float] = mapped_column(
         Float,
         nullable=False
@@ -31,4 +34,10 @@ class Transaction(Base):
     category: Mapped[str] = mapped_column(
         String(50),
         nullable=False
+    )
+
+    date: Mapped[DateType | None] = mapped_column(
+        Date,
+        nullable=True,
+        default=DateType.today
     )
